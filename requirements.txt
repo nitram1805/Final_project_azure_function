@@ -6,8 +6,8 @@ azure-functions
 pandas
 numpy
 psycopg2-binary
-torch
-sysidentpy
+
+sysidentpy[all]
 sqlalchemy
 scikit-learn
 

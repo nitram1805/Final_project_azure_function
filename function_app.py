@@ -16,31 +16,6 @@ from sysidentpy.utils.save_load import load_model
 from sqlalchemy import create_engine
 
 from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
-
-username = os.getenv("DB_USER")
-password = os.getenv("DB_PASSWORD")
-db_connection = "final-project.postgres.database.azure.com:5432/postgres?sslmode=require"
-
-CONNECTION = f"postgresql://{username}:{password}@{db_connection}"
-
-# Import the trained neural network 
-my_model = load_model(file_name='narx_net.syspy')
-
-# Factors for the ARX model
-a_1 = 0.76185
-c_1 = -80.3036
-b_3 = 0.86892
-b_4 = 0.78741
-b_2 = 3.4706
-b_1 = 2.9112
-
-# ARX model that was obtained through sklearn toolbox
-def my_arx_model(x1,x2,y):
-    arx = np.zeros(x1.size)
-    for t in range(17, x1.size):
-        arx[t] = (c_1 + a_1*y[t-1]+b_1*x1[t-1]+b_2*x2[t-1]+b_3*x1[t-17]+b_4*x2[t-17])/10            
-    return arx 
 
 
 app = func.FunctionApp()
@@ -51,6 +26,32 @@ app = func.FunctionApp()
               use_monitor=False) 
 def test_model(myTimer: func.TimerRequest) -> None:
     import psycopg2
+    scaler = StandardScaler()
+
+    username = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
+    db_connection = "final-project.postgres.database.azure.com:5432/postgres?sslmode=require"
+
+    CONNECTION = f"postgresql://{username}:{password}@{db_connection}"
+
+    # Import the trained neural network 
+    my_model = load_model(file_name='narx_net.syspy')
+
+    # Factors for the ARX model
+    a_1 = 0.76185
+    c_1 = -80.3036
+    b_3 = 0.86892
+    b_4 = 0.78741
+    b_2 = 3.4706
+    b_1 = 2.9112
+
+    # ARX model that was obtained through sklearn toolbox
+    def my_arx_model(x1,x2,y):
+        arx = np.zeros(x1.size)
+        for t in range(17, x1.size):
+            arx[t] = (c_1 + a_1*y[t-1]+b_1*x1[t-1]+b_2*x2[t-1]+b_3*x1[t-17]+b_4*x2[t-17])/10            
+        return arx 
+
     if myTimer.past_due:
         logging.info('The timer is past due!')  
 
@@ -88,6 +89,7 @@ def test_model(myTimer: func.TimerRequest) -> None:
     # Set the time column of the retrieved data to be the index
     data['time'] = pd.to_datetime(data['time']) # convert column to datetime object
     data.set_index('time', inplace=True) # set column 'date' to index
+    logging.info(data[0:20])
 
     # Get data for pump 4
     data_10s = data[:]['2023-02-15 11:00:00':'2023-02-15 13:00:00'].resample("10s").mean()
@@ -112,9 +114,9 @@ def test_model(myTimer: func.TimerRequest) -> None:
     compare_data = pd.DataFrame(scaled_data_10s,columns=data_10s.columns, index=data_10s.index)
     x_compare_4_scaled = compare_data['pump4_rpm'].values.reshape(-1,1)
     y_compare_scaled = compare_data['outflow'].values.reshape(-1,1)
-
+    torch.device('cpu')
     # Load the trained neural network and run a prediction
-    my_model = load_model(file_name='narx_net.syspy')
+    my_model = load_model(file_name='narx_net_cpu.syspy', )
     
     yhat_compare = my_model.predict(X=x_compare_4_scaled,y=y_compare_scaled, forecast_horizon=400)
   
